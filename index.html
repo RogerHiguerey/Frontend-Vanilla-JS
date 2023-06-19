@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Consulta y Mutación GraphQL</title>
+  <script>
+    const cache = new Map();
+
+    async function fetchData(query, variables) {
+      const cacheKey = query + JSON.stringify(variables);
+
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey);
+      }
+
+      try {
+        const response = await fetch('http://localhost:4000/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query, variables }),
+        });
+
+        const data = await response.json();
+        cache.set(cacheKey, data);
+        return data;
+      } catch (error) {
+        console.error('Error al realizar la consulta GraphQL:', error);
+        throw error;
+      }
+    }
+
+    //Esta funcion permite saber la cantidad de usuarios registrados.
+    function contarUsuarios() {
+      const queryContarUsuarios = `
+        query {
+          contarUsuarios
+        }
+      `;
+
+      fetchData(queryContarUsuarios)
+        .then((data) => {
+          const resultadoDiv = document.getElementById('resultado');
+          resultadoDiv.textContent = 'Cantidad de usuarios: ' + data.data.contarUsuarios;
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    }
+
+    //Esta funcion permite buscar un usuario y devuelve un mensaje en caso de que no exista.
+    function buscarUsuario() {
+      const inputUsuario = document.getElementById('inputUsuario');
+      const usuario = inputUsuario.value;
+
+      const queryBuscarUsuario = `
+        query($usuario: String!) {
+          buscarUsuario(usuario: $usuario) {
+            usuario
+            id
+          }
+        }
+      `;
+
+      fetchData(queryBuscarUsuario, { usuario })
+        .then((data) => {
+          const resultadoDiv = document.getElementById('resultado');
+          const usuarioEncontrado = data.data.buscarUsuario;
+          resultadoDiv.innerHTML = `
+            <p>Usuario: ${usuarioEncontrado.usuario}</p>
+            <p>ID: ${usuarioEncontrado.id}</p>
+          `;
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    }
+
+    // Esta funcion muestra el listado con todos los usuarios.
+    function mostrarUsuarios() {
+      const queryMostrarUsuarios = `
+        query {
+          mostrarUsuarios {
+            clave
+            id
+            usuario
+          }
+        }
+      `;
+
+      fetchData(queryMostrarUsuarios)
+        .then((data) => {
+          const resultadoDiv = document.getElementById('resultado');
+          const usuarios = data.data.mostrarUsuarios;
+          let usuariosHTML = '';
+
+          usuarios.forEach((usuario) => {
+            usuariosHTML += `
+              <p>Usuario: ${usuario.usuario}</p>
+              <p>Clave: ${usuario.clave}</p>
+              <hr>
+            `;
+          });
+
+          resultadoDiv.innerHTML = usuariosHTML;
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    }
+
+    // Esta funcion permite agrgar un usuario nuevo, siempre y cuando el usuario no exista.
+    async function agregarUsuario() {
+      const inputUsuario = document.getElementById('inputNuevoUsuario');
+      const inputClave = document.getElementById('inputNuevoClave');
+      const usuario = inputUsuario.value;
+      const clave = inputClave.value;
+
+      const queryBuscarUsuario = `
+        query($usuario: String!) {
+          buscarUsuario(usuario: $usuario) {
+            usuario
+          }
+        }
+      `;
+
+      try {
+        const buscarUsuarioData = await fetchData(queryBuscarUsuario, { usuario });
+        const usuarioExistente = buscarUsuarioData.data.buscarUsuario;
+
+        if (usuarioExistente !== null) {
+          const resultadoDiv = document.getElementById('resultado');
+          resultadoDiv.textContent = 'El usuario ya existe.';
+        } else {
+          const mutationAgregarUsuario = `
+            mutation($usuario: String!, $clave: String!) {
+              agregarUsuario(usuario: $usuario, clave: $clave) {
+                usuario
+                id
+              }
+            }
+          `;
+
+          const agregarUsuarioData = await fetchData(mutationAgregarUsuario, { usuario, clave });
+          const nuevoUsuarioAgregado = agregarUsuarioData.data.agregarUsuario;
+
+          const resultadoDiv = document.getElementById('resultado');
+          resultadoDiv.textContent = 'Usuario agregado: ' + JSON.stringify(nuevoUsuarioAgregado);
+
+          mostrarUsuarios(); // Actualiza la lista de usuarios después de agregar uno nuevo
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  </script>
+  <!-- <script type="module" src="./js/api.js"></script>
+  <script type="module" src="./js/usuarios.js"></script>
+  <script type="module" src="./js/main.js"></script> -->
+</head>
+
+<body>
+  <h1>Consulta y Mutación GraphQL</h1>
+
+  <label for="inputUsuario">Buscar Usuario:</label>
+  <input type="text" id="inputUsuario" placeholder="Nombre de usuario">
+  <button onclick="buscarUsuario()">Buscar</button>
+
+  <button onclick="contarUsuarios()">Contar Usuarios</button>
+
+  <button onclick="mostrarUsuarios()">Mostrar Usuarios</button>
+
+  <h2>Agregar Nuevo Usuario</h2>
+  <label for="inputNuevoUsuario">Usuario:</label>
+  <input type="text" id="inputNuevoUsuario" placeholder="Nombre de usuario">
+  <label for="inputNuevoClave">Clave:</label>
+  <input type="password" id="inputNuevoClave" placeholder="Clave del usuario">
+  <button onclick="agregarUsuario()">Agregar Usuario</button>
+
+  <div id="resultado"></div>
+  
+
+</body>
+
+</html>
